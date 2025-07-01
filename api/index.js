@@ -143,7 +143,7 @@ app.post('/api/webhook', async (req, res) => {
         console.log('🔍 Paso 1: Obteniendo datos de encuesta del contacto...');
 
         // Paso 1: Obtener datos de encuesta del contacto
-        const encuestaData = await getDealData(contactId, hubspotToken);
+        const encuestaData = await getDealData(dealId, hubspotToken);
 
         console.log('🔍 Paso 2: Obteniendo datos básicos del contacto...');
 
@@ -190,7 +190,7 @@ app.post('/api/webhook', async (req, res) => {
 });
 
 // Función para obtener datos de encuesta del contacto
-async function getDealData(contactId, token) {
+async function getDealData(dealId, token) {
     const url = 'https://api.hubapi.com/crm/v3/objects/deals/search';
     const payload = {
         properties: [
@@ -222,7 +222,7 @@ async function getDealData(contactId, token) {
                 filters: [
                     {
                         propertyName: "hs_object_id",
-                        value: contactId,
+                        value: dealId,
                         operator: "EQ"
                     }
                 ]
