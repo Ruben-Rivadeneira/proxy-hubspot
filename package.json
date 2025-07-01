@@ -8,14 +8,19 @@
     "start": "node api/index.js"
   },
   "dependencies": {
-    "express": "4.18.2",
+    "axios": "1.6.2",
     "cors": "2.8.5",
-    "axios": "1.6.2"
+    "express": "4.18.2",
+    "uuid": "^11.1.0"
   },
   "engines": {
     "node": "18.x"
   },
-  "keywords": ["hubspot", "proxy", "api"],
+  "keywords": [
+    "hubspot",
+    "proxy",
+    "api"
+  ],
   "author": "Tu Nombre",
   "license": "MIT"
 }
