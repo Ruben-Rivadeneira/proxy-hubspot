@@ -133,7 +133,7 @@ app.post('/api/webhook', async (req, res) => {
         console.log('Paso 1: Obteniendo datos de encuesta del contacto...');
 
         const encuestaData = await getDealData(dealId, hubspotToken);
-        console.log('Datos negocio: ', EncuestaData)
+        console.log('Datos negocio: ', encuestaData)
         console.log('Paso 2: Obteniendo datos básicos del contacto...');
 
         const contactData = await getContactData(contactId, hubspotToken);
