@@ -132,7 +132,6 @@ app.post('/api/webhook', async (req, res) => {
 
         console.log('Paso 1: Obteniendo datos de encuesta del contacto...');
 
-        // Paso 1: Obtener datos de encuesta del contacto
         const encuestaData = await getDealData(dealId, hubspotToken);
         console.log('Datos negocio: ', EncuestaData)
         console.log('Paso 2: Obteniendo datos básicos del contacto...');
@@ -141,13 +140,12 @@ app.post('/api/webhook', async (req, res) => {
         console.log('Datos contacto: ', contactData)
         console.log('🔑 Paso 3: Obteniendo token de autenticación...');
 
-        // Paso 3: Obtener token de autenticación para la API externa
         const authToken = await getAuthToken();
 
         console.log('📤 Paso 4: Enviando encuesta a la API externa...');
 
-        // Paso 4: Preparar y enviar datos a la API externa
         const surveyPayload = prepareSurveyPayload(encuestaData, contactData);
+        console.log('📦 Payload enviado a la API externa:', JSON.stringify(surveyPayload, null, 2));
         const result = await sendSurveyToAPI(surveyPayload, authToken);
 
         console.log('Proceso completado exitosamente');
@@ -182,7 +180,7 @@ async function getDealData(dealId, token) {
     const url = 'https://api.hubapi.com/crm/v3/objects/deals/search';
     const payload = {
         properties: [
-            "fechaencuesta",
+            "fecha_encuesta",
             "valornps",
             "concepto",
             "local",
@@ -300,7 +298,7 @@ function prepareSurveyPayload(surveyData, contactData) {
         idnps: uuidv4(),
         fechaencuesta: surveyData.fechaencuesta || currentDate,
         valornps: surveyData.valornps || "",
-        nrodocumento: contactData.contact_id || "",
+        nrodocumento: "",
         concepto: surveyData.concepto || "",
         local: surveyData.local || "",
         provincia: surveyData.provincia || "",
