@@ -330,14 +330,14 @@ function prepareSurveyPayload(surveyData, contactData) {
         localmcu: surveyData.localmcu || surveyData.local || "",
         fechaenvio: currentDate,
         genero: sanitizeText(surveyData.genero),
-        edad: sanitizeInteger(surveyData.edad),
+        edad: sanitizeString(surveyData.edad),
         ropa: sanitizeText(surveyData.ropa),
         zapatos: sanitizeText(surveyData.zapatos),
         talla_ropa: sanitizeText(surveyData.talla_ropa),
         adolecentes_adultos: sanitizeText(surveyData.adolecentes_adultos),
         infantes: sanitizeText(surveyData.infantes),
         ninos: sanitizeText(surveyData.ninos),
-        talla_zapatos: sanitizeInteger(surveyData.talla_zapatos),
+        talla_zapatos: sanitizeString(surveyData.talla_zapatos),
         actividad: sanitizeText(surveyData.actividad),
         actividad_otros: sanitizeText(surveyData.actividad_otros)
     };
@@ -347,9 +347,9 @@ function sanitizeText(value) {
     return (typeof value === 'string' && value.trim() !== "") ? value.trim() : null;
 }
 
-function sanitizeInteger(value) {
-    const n = parseInt(value, 10);
-    return !isNaN(n) ? n : null;
+function sanitizeString(value) {
+    if (value === null || value === undefined) return null;
+    return String(value).trim() || null;
 }
 // Función para enviar encuesta a la API externa
 async function sendSurveyToAPI(payload, token) {
