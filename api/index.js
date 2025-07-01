@@ -329,20 +329,28 @@ function prepareSurveyPayload(surveyData, contactData) {
         email: contactData.email || contactData.email_principal || "",
         localmcu: surveyData.localmcu || surveyData.local || "",
         fechaenvio: currentDate,
-        genero: surveyData.genero || "",
-        edad: surveyData.edad || "",
-        ropa: surveyData.ropa || "",
-        zapatos: surveyData.zapatos || "",
-        talla_ropa: surveyData.talla_ropa || "",
-        adolecentes_adultos: surveyData.adolecentes_adultos || "",
-        infantes: surveyData.infantes || "",
-        ninos: surveyData.ninos || "",
-        talla_zapatos: surveyData.talla_zapatos || "",
-        actividad: surveyData.actividad || "",
-        actividad_otros: surveyData.actividad_otros || ""
+        genero: sanitizeText(surveyData.genero),
+        edad: sanitizeInteger(surveyData.edad),
+        ropa: sanitizeText(surveyData.ropa),
+        zapatos: sanitizeText(surveyData.zapatos),
+        talla_ropa: sanitizeText(surveyData.talla_ropa),
+        adolecentes_adultos: sanitizeText(surveyData.adolecentes_adultos),
+        infantes: sanitizeText(surveyData.infantes),
+        ninos: sanitizeText(surveyData.ninos),
+        talla_zapatos: sanitizeInteger(surveyData.talla_zapatos),
+        actividad: sanitizeText(surveyData.actividad),
+        actividad_otros: sanitizeText(surveyData.actividad_otros)
     };
 }
 
+function sanitizeText(value) {
+    return (typeof value === 'string' && value.trim() !== "") ? value.trim() : null;
+}
+
+function sanitizeInteger(value) {
+    const n = parseInt(value, 10);
+    return !isNaN(n) ? n : null;
+}
 // Función para enviar encuesta a la API externa
 async function sendSurveyToAPI(payload, token) {
     const url = 'http://35.188.96.105:8001/encuesta';
