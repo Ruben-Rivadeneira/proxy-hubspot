@@ -270,7 +270,7 @@ async function getContactData(contactId, token) {
 }
 
 async function getAuthToken() {
-    const url = 'http://35.188.96.105:8001/token';
+    const url = 'https://apihubspot.cloudvolution.com.ec:8001/token';
     const params = new URLSearchParams();
     params.append('username', 'npshubspot');
     params.append('password', 'Hubspot');
@@ -336,7 +336,7 @@ function sanitizeString(value) {
 }
 
 async function sendSurveyToAPI(payload, token) {
-    const url = 'http://35.188.96.105:8001/encuesta';
+    const url = 'https://apihubspot.cloudvolution.com.ec:8001/encuesta';
 
     const response = await axios.post(url, payload, {
         headers: {
