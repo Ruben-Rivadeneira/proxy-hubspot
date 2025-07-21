@@ -6,7 +6,6 @@ const { v4: uuidv4 } = require('uuid');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
@@ -15,7 +14,6 @@ app.use(cors({
 
 app.use(express.json());
 
-// Logging middleware
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
@@ -45,7 +43,7 @@ app.get('/health', (req, res) => {
 
 app.post('/api/hubspot', async (req, res) => {
     try {
-        console.log('📨 Datos recibidos:', req.body);
+        console.log('Datos recibidos:', req.body);
 
         const { id, data } = req.body;
 
@@ -69,7 +67,7 @@ app.post('/api/hubspot', async (req, res) => {
 
         const hubspotUrl = `https://api.hubapi.com/crm/v3/objects/deals/${id}`;
 
-        console.log('🎯 Enviando a HubSpot:', {
+        console.log('Enviando a HubSpot:', {
             url: hubspotUrl,
             dealId: id,
             properties: Object.keys(data)
@@ -108,7 +106,7 @@ app.post('/api/hubspot', async (req, res) => {
 
 app.post('/api/webhook', async (req, res) => {
     try {
-        console.log('📨 Webhook recibido:', req.body);
+        console.log('Webhook recibido:', req.body);
 
         const { dealId, contactId } = req.body;
 
@@ -131,24 +129,40 @@ app.post('/api/webhook', async (req, res) => {
         }
 
         console.log('Paso 1: Obteniendo datos de encuesta del contacto...');
-
         const encuestaData = await getDealData(dealId, hubspotToken);
         console.log('Datos negocio: ', encuestaData)
+        
         console.log('Paso 2: Obteniendo datos básicos del contacto...');
-
         const contactData = await getContactData(contactId, hubspotToken);
         console.log('Datos contacto: ', contactData)
-        console.log('🔑 Paso 3: Obteniendo token de autenticación...');
-
+        
+        console.log('Paso 3: Obteniendo token de autenticación...');
         const authToken = await getAuthToken();
 
-        console.log('📤 Paso 4: Enviando encuesta a la API externa...');
-
+        console.log('Paso 4: Enviando encuesta a la API externa...');
         const surveyPayload = prepareSurveyPayload(encuestaData, contactData);
-        console.log('📦 Payload enviado a la API externa:', JSON.stringify(surveyPayload, null, 2));
+        console.log('Payload enviado a la API externa:', JSON.stringify(surveyPayload, null, 2));
+
         const result = await sendSurveyToAPI(surveyPayload, authToken);
 
-        console.log('Proceso completado exitosamente');
+        console.log('Paso 5: Actualizando negocio en husbpot con Idnps');
+        const idnps = surveyPayload.idnps;
+        const currentDate = new Date().toISOString().split('T').[0];
+        const hubspotUpdate = `https://api.hubapi.com/crm/v3/objects/deals/${dealId}`;
+        const updateResponse = 
+        const updateResponse = await axios.patch(hubspotUpdateUrl, {
+            properties: {
+                idnps: idnpsGenerado,
+                fechaencuesta: currentDate
+            }
+        }, {
+            headers: {
+                'Authorization': `Bearer ${hubspotToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('Deal actualizado con IDNPS y fechaencuesta:', updateResponse.status);
 
         return res.json({
             success: true,
@@ -157,10 +171,10 @@ app.post('/api/webhook', async (req, res) => {
             contactId: contactId,
             processedAt: new Date().toISOString(),
             steps: {
-                surveyDataRetrieved: '✅',
-                contactDataRetrieved: '✅',
-                authTokenObtained: '✅',
-                surveySent: '✅'
+                surveyDataRetrieved: 'true',
+                contactDataRetrieved: 'true',
+                authTokenObtained: 'true',
+                surveySent: 'true'
             },
             result: result
         });
@@ -293,10 +307,11 @@ function prepareSurveyPayload(surveyData, contactData) {
     const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
         'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
     const currentDate = `${now.getDate().toString().padStart(2, '0')}-${months[now.getMonth()]}-${now.getFullYear().toString().slice(-2)}`;
+    const isoDate = now.toISOString().split('T')[0];
 
     return {
         idnps: uuidv4(),
-        fechaencuesta: surveyData.fechaencuesta || currentDate,
+        fechaencuesta: isoDate || currentDate,
         valornps: surveyData.valornps || "",
         nrodocumento: "",
         concepto: surveyData.concepto || "",
