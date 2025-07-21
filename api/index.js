@@ -154,7 +154,7 @@ app.post('/api/webhook', async (req, res) => {
         const updateResponse = await axios.patch(hubspotUpdate, {
             properties: {
                 idnps: idnps,
-                fechaencuesta: currentDate
+                fecha_encuesta: currentDate
             }
         }, {
             headers: {
