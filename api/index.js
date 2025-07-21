@@ -312,7 +312,7 @@ function prepareSurveyPayload(surveyData, contactData) {
 
     return {
         idnps: uuidv4(),
-        fechaencuesta: isoDate || currentDate,
+        fechaencuesta: currentDate,
         valornps: surveyData.valornps || "",
         nrodocumento: "",
         concepto: surveyData.concepto || "",
