@@ -147,7 +147,9 @@ app.post('/api/webhook', async (req, res) => {
 
         console.log('Paso 5: Actualizando negocio en husbpot con Idnps');
         const idnps = surveyPayload.idnps;
-        const currentDate = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+        const currentDate = `${now.getDate().toString().padStart(2, '0')}-${months[now.getMonth()]}-${now.getFullYear().toString().slice(-2)}`;
         const hubspotUpdate = `https://api.hubapi.com/crm/v3/objects/deals/${dealId}`;
         const updateResponse = await axios.patch(hubspotUpdateUrl, {
             properties: {
