@@ -154,7 +154,7 @@ app.post('/api/webhook', async (req, res) => {
         const updateResponse = await axios.patch(hubspotUpdate, {
             properties: {
                 idnps: idnps,
-                fecha_encuesta: currentDate
+                fechaencuesta: currentDate
             }
         }, {
             headers: {
@@ -195,7 +195,7 @@ async function getDealData(dealId, token) {
     const url = 'https://api.hubapi.com/crm/v3/objects/deals/search';
     const payload = {
         properties: [
-            "fecha_encuesta",
+            "fechaencuesta",
             "valornps",
             "concepto",
             "local",
