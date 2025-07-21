@@ -153,7 +153,7 @@ app.post('/api/webhook', async (req, res) => {
         const hubspotUpdate = `https://api.hubapi.com/crm/v3/objects/deals/${dealId}`;
         const updateResponse = await axios.patch(hubspotUpdate, {
             properties: {
-                idnps: idnpsGenerado,
+                idnps: idnps,
                 fechaencuesta: currentDate
             }
         }, {
