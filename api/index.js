@@ -151,7 +151,7 @@ app.post('/api/webhook', async (req, res) => {
         const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
         const currentDate = `${now.getDate().toString().padStart(2, '0')}-${months[now.getMonth()]}-${now.getFullYear().toString().slice(-2)}`;
         const hubspotUpdate = `https://api.hubapi.com/crm/v3/objects/deals/${dealId}`;
-        const updateResponse = await axios.patch(hubspotUpdateUrl, {
+        const updateResponse = await axios.patch(hubspotUpdate, {
             properties: {
                 idnps: idnpsGenerado,
                 fechaencuesta: currentDate
