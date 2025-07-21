@@ -254,7 +254,8 @@ async function getContactData(contactId, token) {
             "lastname",
             "phone",
             "email",
-            "email_principal"
+            "email_principal",
+            "fechaMail"
         ],
         filterGroups: [
             {
@@ -327,7 +328,7 @@ function prepareSurveyPayload(surveyData, contactData) {
         telefono: contactData.phone || "",
         email: contactData.email || contactData.email_principal || "",
         localmcu: surveyData.localmcu || surveyData.centro || "",
-        fechaenvio: currentDate,
+        fechaenvio: contactData.fechaMail,
         genero: sanitizeText(surveyData.genero),
         edad: sanitizeString(surveyData.edad),
         ropa: sanitizeText(surveyData.ropa),
