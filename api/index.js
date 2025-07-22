@@ -255,7 +255,7 @@ async function getContactData(contactId, token) {
             "phone",
             "email",
             "email_principal",
-            "fechaMail"
+            "fechamail"
         ],
         filterGroups: [
             {
