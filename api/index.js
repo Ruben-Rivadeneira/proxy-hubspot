@@ -313,12 +313,20 @@ function prepareSurveyPayload(surveyData, contactData) {
     const fmailRaw = contactData.fechamail;
     let fmail = '';
     
-    if (fmailRaw) {
+    if (typeof fmailRaw === 'string' && fmailRaw.includes('/')) {
         const [day, month, year] = fmailRaw.split('/');
-        const monthIndex = parseInt(month) - 1;
-        const shortYear = year.slice(-2);
-        fmail = `${day.padStart(2, '0')}-${months[monthIndex]}-${shortYear}`;
+    
+        if (day && month && year) {
+            const monthIndex = parseInt(month, 10) - 1;
+            const shortYear = year.toString().slice(-2);
+
+        
+            if (monthIndex >= 0 && monthIndex < 12) {
+                fmail = `${day.padStart(2, '0')}-${months[monthIndex]}-${shortYear}`;
+            }
+        }
     }
+
 
     return {
         idnps: uuidv4(),
