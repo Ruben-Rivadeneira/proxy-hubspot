@@ -310,7 +310,7 @@ function prepareSurveyPayload(surveyData, contactData) {
         'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
     const currentDate = `${now.getDate().toString().padStart(2, '0')}-${months[now.getMonth()]}-${now.getFullYear().toString().slice(-2)}`;
     const isoDate = now.toISOString().split('T')[0];
-    const fmailRaw = contactData.fechaMail;
+    const fmailRaw = contactData.fechamail;
     let fmail = '';
     
     if (fmailRaw) {
