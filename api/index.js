@@ -310,6 +310,15 @@ function prepareSurveyPayload(surveyData, contactData) {
         'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
     const currentDate = `${now.getDate().toString().padStart(2, '0')}-${months[now.getMonth()]}-${now.getFullYear().toString().slice(-2)}`;
     const isoDate = now.toISOString().split('T')[0];
+    const fmailRaw = contactData.fechaMail;
+    let fmail = '';
+    
+    if (fmailRaw) {
+        const [day, month, year] = fmailRaw.split('/');
+        const monthIndex = parseInt(month) - 1;
+        const shortYear = year.slice(-2);
+        fmail = `${day.padStart(2, '0')}-${months[monthIndex]}-${shortYear}`;
+    }
 
     return {
         idnps: uuidv4(),
@@ -328,7 +337,7 @@ function prepareSurveyPayload(surveyData, contactData) {
         telefono: contactData.phone || "",
         email: contactData.email || contactData.email_principal || "",
         localmcu: surveyData.localmcu || surveyData.centro || "",
-        fechaenvio: contactData.fechaMail,
+        fechaenvio: fmail || currentDate,
         genero: sanitizeText(surveyData.genero),
         edad: sanitizeString(surveyData.edad),
         ropa: sanitizeText(surveyData.ropa),
