@@ -129,41 +129,24 @@ app.post('/api/webhook', async (req, res) => {
         }
 
         console.log('Paso 1: Obteniendo datos de encuesta del contacto...');
+
         const encuestaData = await getDealData(dealId, hubspotToken);
         console.log('Datos negocio: ', encuestaData)
-        
         console.log('Paso 2: Obteniendo datos básicos del contacto...');
+
         const contactData = await getContactData(contactId, hubspotToken);
         console.log('Datos contacto: ', contactData)
-        
         console.log('Paso 3: Obteniendo token de autenticación...');
+
         const authToken = await getAuthToken();
 
         console.log('Paso 4: Enviando encuesta a la API externa...');
+
         const surveyPayload = prepareSurveyPayload(encuestaData, contactData);
         console.log('Payload enviado a la API externa:', JSON.stringify(surveyPayload, null, 2));
-
         const result = await sendSurveyToAPI(surveyPayload, authToken);
 
-        console.log('Paso 5: Actualizando negocio en husbpot con Idnps');
-        const idnps = surveyPayload.idnps;
-        const now = new Date();
-        const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-        const currentDate = `${now.getDate().toString().padStart(2, '0')}-${months[now.getMonth()]}-${now.getFullYear().toString().slice(-2)}`;
-        const hubspotUpdate = `https://api.hubapi.com/crm/v3/objects/deals/${dealId}`;
-        const updateResponse = await axios.patch(hubspotUpdate, {
-            properties: {
-                idnps: idnps,
-                fechaencuesta: currentDate
-            }
-        }, {
-            headers: {
-                'Authorization': `Bearer ${hubspotToken}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        console.log('Deal actualizado con IDNPS y fechaencuesta:', updateResponse.status);
+        console.log('Proceso completado exitosamente');
 
         return res.json({
             success: true,
@@ -172,10 +155,10 @@ app.post('/api/webhook', async (req, res) => {
             contactId: contactId,
             processedAt: new Date().toISOString(),
             steps: {
-                surveyDataRetrieved: 'true',
-                contactDataRetrieved: 'true',
-                authTokenObtained: 'true',
-                surveySent: 'true'
+                surveyDataRetrieved: '✅',
+                contactDataRetrieved: '✅',
+                authTokenObtained: '✅',
+                surveySent: '✅'
             },
             result: result
         });
@@ -196,6 +179,7 @@ async function getDealData(dealId, token) {
     const payload = {
         properties: [
             "fechaencuesta",
+            "fecha_encuesta",
             "valornps",
             "concepto",
             "local",
@@ -309,28 +293,10 @@ function prepareSurveyPayload(surveyData, contactData) {
     const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
         'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
     const currentDate = `${now.getDate().toString().padStart(2, '0')}-${months[now.getMonth()]}-${now.getFullYear().toString().slice(-2)}`;
-    const isoDate = now.toISOString().split('T')[0];
-    const fmailRaw = contactData.fechamail;
-    let fmail = '';
-    
-    if (typeof fmailRaw === 'string' && fmailRaw.includes('/')) {
-        const [day, month, year] = fmailRaw.split('/');
-    
-        if (day && month && year) {
-            const monthIndex = parseInt(month, 10) - 1;
-            const shortYear = year.toString().slice(-2);
-
-        
-            if (monthIndex >= 0 && monthIndex < 12) {
-                fmail = `${day.padStart(2, '0')}-${months[monthIndex]}-${shortYear}`;
-            }
-        }
-    }
-
 
     return {
         idnps: uuidv4(),
-        fechaencuesta: currentDate,
+        fechaencuesta: surveyData.fechaencuesta || currentDate,
         valornps: surveyData.valornps || "",
         nrodocumento: "",
         concepto: surveyData.concepto || "",
@@ -345,7 +311,7 @@ function prepareSurveyPayload(surveyData, contactData) {
         telefono: contactData.phone || "",
         email: contactData.email || contactData.email_principal || "",
         localmcu: surveyData.localmcu || surveyData.centro || "",
-        fechaenvio: fmail || currentDate,
+        fechaenvio: contactData.fechamail || currentDate,
         genero: sanitizeText(surveyData.genero),
         edad: sanitizeString(surveyData.edad),
         ropa: sanitizeText(surveyData.ropa),
@@ -430,7 +396,7 @@ app.post('/test/send-survey', async (req, res) => {
 
 app.use('*', (req, res) => {
     res.status(404).json({
-        error: '🔍 Ruta no encontrada',
+        error: 'Ruta no encontrada',
         path: req.originalUrl,
         method: req.method,
         availableRoutes: [
@@ -442,11 +408,10 @@ app.use('*', (req, res) => {
     });
 });
 
-// Solo para desarrollo local
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
-        console.log(`🌟 Servidor corriendo en http://localhost:${PORT}`);
-        console.log(`📋 Endpoints disponibles:`);
+        console.log(`Servidor corriendo en http://localhost:${PORT}`);
+        console.log(`Endpoints disponibles:`);
         console.log(`   GET  http://localhost:${PORT}/`);
         console.log(`   GET  http://localhost:${PORT}/health`);
         console.log(`   POST http://localhost:${PORT}/api/hubspot`);
