@@ -28,7 +28,7 @@ app.get('/', (req, res) => {
       'GET /': 'Estado de la API',
       'GET /health': 'Health check',
       'POST /api/hubspot': 'Actualizar contacto en HubSpot',
-      'POST /api/webhook': 'Procesar encuesta NPS (requiere dealId y contactId)'
+      'POST /api/webhook': 'Procesar encuesta NPS desde HubSpot (requiere dealId y contactId)'
     }
   });
 });
@@ -43,54 +43,44 @@ app.get('/health', (req, res) => {
 
 app.post('/api/hubspot', async (req, res) => {
   try {
-    console.log('Datos recibidos desde la landing:', req.body);
-
+    console.log('Datos recibidos:', req.body);
+    
     const { id, data } = req.body;
-
+    
     if (!id || !data) {
       return res.status(400).json({
         error: 'Faltan datos requeridos',
         required: { id: 'string', data: 'object' },
-        received: {
-          id: id ? 'true' : 'false',
-          data: data ? 'true' : 'false'
-        }
+        received: { id: id ? 'true' : 'false', data: data ? 'true' : 'false' }
       });
     }
-
+    
     const token = process.env.HUBSPOT_TOKEN;
     if (!token) {
       return res.status(500).json({
         error: 'Token de HubSpot no configurado en variables de entorno'
       });
     }
-
-    if (data.fechaencuesta) {
-      const [day, month, year] = new Date().toLocaleDateString('es-ES').split('/');
-      const timestamp = new Date(+year, +month - 1, +day).getTime();
-      data.fecha_encuesta = timestamp;
-    }
-
+    
     const hubspotUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${id}`;
-    console.log('Enviando actualización a HubSpot:', {
+    
+    console.log('Enviando a HubSpot:', {
       url: hubspotUrl,
       contactId: id,
       properties: Object.keys(data)
     });
-
-    const response = await axios.patch(
-      hubspotUrl,
-      { properties: data },
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+    
+    const response = await axios.patch(hubspotUrl, {
+      properties: data
+    }, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
-    );
-
-    console.log('Contacto actualizado exitosamente en HubSpot');
-
+    });
+    
+    console.log('HubSpot respondió exitosamente');
+    
     return res.json({
       success: true,
       message: 'Contacto actualizado exitosamente en HubSpot',
@@ -98,10 +88,9 @@ app.post('/api/hubspot', async (req, res) => {
       updatedAt: new Date().toISOString(),
       propertiesUpdated: Object.keys(data).length
     });
-
+    
   } catch (error) {
-    console.error('Error al actualizar contacto en HubSpot:', error.response?.data || error.message);
-
+    console.error('Error:', error.response?.data || error.message);
     return res.status(500).json({
       error: 'Error al comunicarse con HubSpot',
       details: error.response?.data || error.message,
@@ -113,54 +102,58 @@ app.post('/api/hubspot', async (req, res) => {
 app.post('/api/webhook', async (req, res) => {
   try {
     console.log('Webhook recibido:', req.body);
+    
     const { dealId, contactId } = req.body;
-
+    
     if (!dealId || !contactId) {
       return res.status(400).json({
         error: 'Faltan IDs requeridos',
         required: { dealId: 'string', contactId: 'string' },
-        received: {
-          dealId: dealId ? 'true' : 'false',
-          contactId: contactId ? 'true' : 'false'
-        }
+        received: { dealId: dealId ? 'true' : 'false', contactId: contactId ? 'true' : 'false' }
       });
     }
-
-    console.log('Webhook recibido: ', { dealId, contactId });
-
+    
     const hubspotToken = process.env.HUBSPOT_TOKEN;
     if (!hubspotToken) {
       return res.status(500).json({
         error: 'Token de HubSpot no configurado en variables de entorno'
       });
     }
-
+    
     console.log('Paso 1: Obteniendo datos del negocio...');
     const dealData = await getDealData(dealId, hubspotToken);
     console.log('Datos negocio:', dealData);
-
+    
     console.log('Paso 2: Obteniendo datos del contacto...');
     const contactData = await getContactData(contactId, hubspotToken);
     console.log('Datos contacto:', contactData);
-
-    console.log('Paso 3: Preparando payload para API externa...');
+    
+    console.log('Paso 3: Obteniendo token de autenticación...');
     const authToken = await getAuthToken();
+    
+    console.log('Paso 4: Enviando encuesta a la API externa...');
     const surveyPayload = prepareSurveyPayload(dealData, contactData);
-    console.log('Payload a enviar:', JSON.stringify(surveyPayload, null, 2));
-
+    console.log('Payload enviado a la API externa:', JSON.stringify(surveyPayload, null, 2));
+    
     const result = await sendSurveyToAPI(surveyPayload, authToken);
-
-    console.log('Encuesta enviada exitosamente a la API externa');
-
+    
+    console.log('Proceso completado exitosamente');
+    
     return res.json({
       success: true,
-      message: 'Encuesta procesada correctamente',
-      contactId,
-      dealId,
+      message: 'Encuesta procesada y enviada exitosamente',
+      dealId: dealId,
+      contactId: contactId,
       processedAt: new Date().toISOString(),
-      result
+      steps: {
+        dealDataRetrieved: 'ok',
+        contactDataRetrieved: 'ok',
+        authTokenObtained: 'ok',
+        surveySent: 'ok'
+      },
+      result: result
     });
-
+    
   } catch (error) {
     console.error('Error en webhook:', error.response?.data || error.message);
     return res.status(500).json({
@@ -173,94 +166,246 @@ app.post('/api/webhook', async (req, res) => {
 
 async function getDealData(dealId, token) {
   const url = 'https://api.hubapi.com/crm/v3/objects/deals/search';
+  
   const payload = {
-    properties: ["concepto", "local", "provincia", "region", "centro", "provincia_homologada", "region"],
-    filterGroups: [{ filters: [{ propertyName: "hs_object_id", value: dealId, operator: "EQ" }] }]
+    properties: [
+      "concepto",
+      "local",
+      "provincia",
+      "region",
+      "centro",
+      "provincia_homologada"
+    ],
+    filterGroups: [
+      {
+        filters: [
+          {
+            propertyName: "hs_object_id",
+            value: dealId,
+            operator: "EQ"
+          }
+        ]
+      }
+    ]
   };
-
+  
   const response = await axios.post(url, payload, {
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
   });
-
-  if (response.data.results?.length > 0) return response.data.results[0].properties;
-  throw new Error('No se encontró el negocio con los datos solicitados');
+  
+  if (response.data.results && response.data.results.length > 0) {
+    return response.data.results[0].properties;
+  } else {
+    throw new Error('No se encontró el negocio');
+  }
 }
 
 async function getContactData(contactId, token) {
   const url = 'https://api.hubapi.com/crm/v3/objects/contacts/search';
+  
   const payload = {
     properties: [
-      "contact_id", "firstname", "lastname", "phone", "email", "email_principal", "fechamail",
-      "valornps", "mejoras", "comentario", "genero", "edad", "ropa", "zapatos", "talla_ropa",
-      "adolecentes_adultos", "infantes", "ninos", "talla_zapatos", "actividad", "actividad_otros", "fechaencuesta"
+      "contact_id",
+      "firstname",
+      "lastname",
+      "phone",
+      "email",
+      "email_principal",
+      "fechamail",
+      "valornps",
+      "mejoras",
+      "comentario",
+      "genero",
+      "edadnps",
+      "ropa",
+      "zapatos",
+      "talla_ropa",
+      "adolecentes_adultos",
+      "infantes",
+      "ninos",
+      "talla_zapatos",
+      "actividad",
+      "actividad_otros",
+      "fechaencuesta"
     ],
-    filterGroups: [{ filters: [{ propertyName: "hs_object_id", value: contactId, operator: "EQ" }] }]
+    filterGroups: [
+      {
+        filters: [
+          {
+            propertyName: "hs_object_id",
+            value: contactId,
+            operator: "EQ"
+          }
+        ]
+      }
+    ]
   };
-
+  
   const response = await axios.post(url, payload, {
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
   });
-
-  if (response.data.results?.length > 0) return response.data.results[0].properties;
-  throw new Error('No se encontró el contacto');
+  
+  if (response.data.results && response.data.results.length > 0) {
+    return response.data.results[0].properties;
+  } else {
+    throw new Error('No se encontró el contacto');
+  }
 }
 
 async function getAuthToken() {
   const url = 'https://apihubspot.cloudvolution.com.ec:8001/token';
+  
   const params = new URLSearchParams();
   params.append('username', 'npshubspot');
   params.append('password', 'Hubspot');
-
+  
   const response = await axios.post(url, params, {
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    }
   });
+  
+  if (response.data.access_token) {
+    return response.data.access_token;
+  } else {
+    throw new Error('No se pudo obtener el token de autenticación');
+  }
+}
 
-  if (response.data.access_token) return response.data.access_token;
-  throw new Error('No se pudo obtener el token de autenticación');
+function formatDateToDDMMYYYY(fechaEncuesta) {
+  if (!fechaEncuesta) return null;
+  
+  // Si ya viene en formato DD/MM/YYYY, retornar tal cual
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(fechaEncuesta)) {
+    return fechaEncuesta;
+  }
+  
+  // Si viene en formato ISO o timestamp, convertir
+  try {
+    const date = new Date(fechaEncuesta);
+    if (isNaN(date.getTime())) return null;
+    
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${day}/${month}/${year}`;
+  } catch (e) {
+    return null;
+  }
 }
 
 function prepareSurveyPayload(dealData, contactData) {
   const now = new Date();
-  const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   const currentDate = `${now.getDate().toString().padStart(2, '0')}-${months[now.getMonth()]}-${now.getFullYear().toString().slice(-2)}`;
-
+  
   return {
     idnps: uuidv4(),
-    fechaencuesta: contactData.fechaencuesta || currentDate,
+    fechaencuesta: formatDateToDDMMYYYY(contactData.fechaencuesta) || currentDate,
     valornps: contactData.valornps || "",
+    nrodocumento: "",
     concepto: dealData.concepto || "",
-    local: dealData.local || "",
+    local: dealData.centro || dealData.local || "",
     provincia: dealData.provincia_homologada || dealData.provincia || "",
     region: dealData.region || "",
-    nrodocumento: contactData.contact_id || "",
+    identificacion: contactData.contact_id || "",
     nombres: contactData.firstname || "",
     apellidos: contactData.lastname || "",
     mejoras: contactData.mejoras || "",
     comentario: contactData.comentario || "",
     telefono: contactData.phone || "",
     email: contactData.email || contactData.email_principal || "",
+    localmcu: dealData.centro || dealData.local || "",
     fechaenvio: contactData.fechamail || currentDate,
-    genero: contactData.genero || "",
-    edad: contactData.edad || "",
-    ropa: contactData.ropa || "",
-    zapatos: contactData.zapatos || "",
-    talla_ropa: contactData.talla_ropa || "",
-    adolecentes_adultos: contactData.adolecentes_adultos || "",
-    infantes: contactData.infantes || "",
-    ninos: contactData.ninos || "",
-    talla_zapatos: contactData.talla_zapatos || "",
-    actividad: contactData.actividad || "",
-    actividad_otros: contactData.actividad_otros || ""
+    genero: sanitizeText(contactData.genero),
+    edad: sanitizeString(contactData.edadnps),
+    ropa: sanitizeText(contactData.ropa),
+    zapatos: sanitizeText(contactData.zapatos),
+    talla_ropa: sanitizeText(contactData.talla_ropa),
+    adolecentes_adultos: sanitizeText(contactData.adolecentes_adultos),
+    infantes: sanitizeText(contactData.infantes),
+    ninos: sanitizeText(contactData.ninos),
+    talla_zapatos: sanitizeString(contactData.talla_zapatos),
+    actividad: sanitizeText(contactData.actividad),
+    actividad_otros: sanitizeText(contactData.actividad_otros)
   };
+}
+
+function sanitizeText(value) {
+  return (typeof value === 'string' && value.trim() !== "") ? value.trim() : null;
+}
+
+function sanitizeString(value) {
+  if (value === null || value === undefined) return null;
+  return String(value).trim() || null;
 }
 
 async function sendSurveyToAPI(payload, token) {
   const url = 'https://apihubspot.cloudvolution.com.ec:8001/encuesta';
+  
   const response = await axios.post(url, payload, {
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
   });
+  
   return response.data;
 }
+
+// Endpoints de testing
+app.post('/test/deal-data', async (req, res) => {
+  try {
+    const { dealId } = req.body;
+    const token = process.env.HUBSPOT_TOKEN;
+    
+    if (!dealId || !token) {
+      return res.status(400).json({ error: 'dealId o token faltante' });
+    }
+    
+    const data = await getDealData(dealId, token);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/test/contact-data', async (req, res) => {
+  try {
+    const { contactId } = req.body;
+    const token = process.env.HUBSPOT_TOKEN;
+    
+    if (!contactId || !token) {
+      return res.status(400).json({ error: 'contactId o token faltante' });
+    }
+    
+    const data = await getContactData(contactId, token);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/test/send-survey', async (req, res) => {
+  try {
+    const { dealData, contactData } = req.body;
+    
+    const authToken = await getAuthToken();
+    const payload = prepareSurveyPayload(dealData, contactData);
+    const response = await sendSurveyToAPI(payload, authToken);
+    
+    res.json({ success: true, payloadSent: payload, response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.use('*', (req, res) => {
   res.status(404).json({
@@ -279,6 +424,11 @@ app.use('*', (req, res) => {
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
     console.log(`Servidor corriendo en http://localhost:${PORT}`);
+    console.log(`Endpoints disponibles:`);
+    console.log(`  GET  http://localhost:${PORT}/`);
+    console.log(`  GET  http://localhost:${PORT}/health`);
+    console.log(`  POST http://localhost:${PORT}/api/hubspot`);
+    console.log(`  POST http://localhost:${PORT}/api/webhook`);
   });
 }
 
