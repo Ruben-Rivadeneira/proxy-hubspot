@@ -126,6 +126,8 @@ app.post('/api/webhook', async (req, res) => {
       });
     }
 
+    console.log('Webhook recibido: ', { dealId, contactId });
+
     const hubspotToken = process.env.HUBSPOT_TOKEN;
     if (!hubspotToken) {
       return res.status(500).json({
