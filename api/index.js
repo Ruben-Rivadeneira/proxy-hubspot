@@ -19,16 +19,18 @@ app.use((req, res, next) => {
     next();
 });
 
+// Rutas
 app.get('/', (req, res) => {
     res.json({
         status: 'OK',
-        message: 'HubSpot Proxy API está funcionando!',
+        message: 'HubSpot Contact+Deal Proxy API funcionando correctamente!',
         timestamp: new Date().toISOString(),
         endpoints: {
             'GET /': 'Estado de la API',
             'GET /health': 'Health check',
-            'POST /api/hubspot': 'Actualizar deal en HubSpot',
-            'POST /api/webhook': 'Procesar encuesta NPS desde HubSpot (requiere dealId y contactId)'
+            'POST /api/webhook': 'Procesar encuesta NPS desde HubSpot',
+            'POST /test/contact-data': 'Test de datos del contacto',
+            'POST /test/deal-data': 'Test de datos del negocio'
         }
     });
 });
@@ -41,82 +43,19 @@ app.get('/health', (req, res) => {
     });
 });
 
-app.post('/api/hubspot', async (req, res) => {
-    try {
-        console.log('Datos recibidos:', req.body);
-
-        const { id, data } = req.body;
-
-        if (!id || !data) {
-            return res.status(400).json({
-                error: 'Faltan datos requeridos',
-                required: { id: 'string', data: 'object' },
-                received: {
-                    id: id ? 'true' : 'false',
-                    data: data ? 'true' : 'false'
-                }
-            });
-        }
-
-        const token = process.env.HUBSPOT_TOKEN;
-        if (!token) {
-            return res.status(500).json({
-                error: 'Token de HubSpot no configurado en variables de entorno'
-            });
-        }
-
-        const hubspotUrl = `https://api.hubapi.com/crm/v3/objects/deals/${id}`;
-
-        console.log('Enviando a HubSpot:', {
-            url: hubspotUrl,
-            dealId: id,
-            properties: Object.keys(data)
-        });
-
-        const response = await axios.patch(hubspotUrl,
-            { properties: data },
-            {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-
-        console.log('HubSpot respondió exitosamente');
-
-        return res.json({
-            success: true,
-            message: 'Deal actualizado exitosamente en HubSpot',
-            dealId: id,
-            updatedAt: new Date().toISOString(),
-            propertiesUpdated: Object.keys(data).length
-        });
-
-    } catch (error) {
-        console.error('Error:', error.response?.data || error.message);
-
-        return res.status(500).json({
-            error: 'Error al comunicarse con HubSpot',
-            details: error.response?.data || error.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-});
-
+// Principal
 app.post('/api/webhook', async (req, res) => {
     try {
         console.log('Webhook recibido:', req.body);
 
         const { dealId, contactId } = req.body;
-
         if (!dealId || !contactId) {
             return res.status(400).json({
                 error: 'Faltan IDs requeridos',
                 required: { dealId: 'string', contactId: 'string' },
                 received: {
-                    dealId: dealId ? 'true' : 'false',
-                    contactId: contactId ? 'true' : 'false'
+                    dealId: !!dealId,
+                    contactId: !!contactId
                 }
             });
         }
@@ -128,22 +67,26 @@ app.post('/api/webhook', async (req, res) => {
             });
         }
 
-        console.log('Paso 1: Obteniendo datos de encuesta del contacto...');
-
-        const encuestaData = await getDealData(dealId, hubspotToken);
-        console.log('Datos negocio: ', encuestaData)
-        console.log('Paso 2: Obteniendo datos básicos del contacto...');
-
+        console.log('Paso 1: Obteniendo datos del contacto...');
         const contactData = await getContactData(contactId, hubspotToken);
-        console.log('Datos contacto: ', contactData)
-        console.log('Paso 3: Obteniendo token de autenticación...');
+        console.log('Contacto:', contactData);
 
+        console.log('Paso 2: Obteniendo datos del negocio...');
+        const dealData = await getDealData(dealId, hubspotToken);
+        console.log('Negocio:', dealData);
+
+        console.log('Paso 3: Preparando payload...');
+        const surveyPayload = prepareSurveyPayload(contactData, dealData);
+
+        console.log('Payload combinado:', JSON.stringify(surveyPayload, null, 2));
+
+        console.log('Paso 4: Actualizando contacto en HubSpot...');
+        await updateContactData(contactId, surveyPayload, hubspotToken);
+
+        console.log('Paso 5: Obteniendo token externo...');
         const authToken = await getAuthToken();
 
-        console.log('Paso 4: Enviando encuesta a la API externa...');
-
-        const surveyPayload = prepareSurveyPayload(encuestaData, contactData);
-        console.log('Payload enviado a la API externa:', JSON.stringify(surveyPayload, null, 2));
+        console.log('Paso 6: Enviando encuesta a API externa...');
         const result = await sendSurveyToAPI(surveyPayload, authToken);
 
         console.log('Proceso completado exitosamente');
@@ -151,21 +94,21 @@ app.post('/api/webhook', async (req, res) => {
         return res.json({
             success: true,
             message: 'Encuesta procesada y enviada exitosamente',
-            dealId: dealId,
-            contactId: contactId,
+            contactId,
+            dealId,
             processedAt: new Date().toISOString(),
             steps: {
-                surveyDataRetrieved: '✅',
-                contactDataRetrieved: '✅',
-                authTokenObtained: '✅',
-                surveySent: '✅'
+                contactDataRetrieved: 'ok',
+                dealDataRetrieved: 'ok',
+                contactUpdated: 'ok',
+                authTokenObtained: 'ok',
+                surveySent: 'ok'
             },
-            result: result
+            result
         });
 
     } catch (error) {
         console.error('Error en webhook:', error.response?.data || error.message);
-
         return res.status(500).json({
             error: 'Error al procesar webhook',
             details: error.response?.data || error.message,
@@ -174,83 +117,19 @@ app.post('/api/webhook', async (req, res) => {
     }
 });
 
-async function getDealData(dealId, token) {
-    const url = 'https://api.hubapi.com/crm/v3/objects/deals/search';
-    const payload = {
-        properties: [
-            "fechaencuesta",
-            "fecha_encuesta",
-            "valornps",
-            "concepto",
-            "local",
-            "provincia",
-            "region",
-            "mejoras",
-            "comentario",
-            "centro",
-            "provincia_homologada",
-            "region",
-            "genero",
-            "edad",
-            "ropa",
-            "zapatos",
-            "talla_ropa",
-            "adolecentes_adultos",
-            "infantes",
-            "ninos",
-            "talla_zapatos",
-            "actividad",
-            "actividad_otros"
-        ],
-        filterGroups: [
-            {
-                filters: [
-                    {
-                        propertyName: "hs_object_id",
-                        value: dealId,
-                        operator: "EQ"
-                    }
-                ]
-            }
-        ]
-    };
-
-    const response = await axios.post(url, payload, {
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        }
-    });
-
-    if (response.data.results && response.data.results.length > 0) {
-        return response.data.results[0].properties;
-    } else {
-        throw new Error('No se encontró el contacto con los datos de encuesta');
-    }
-}
-
+// Datos del contacto
 async function getContactData(contactId, token) {
     const url = 'https://api.hubapi.com/crm/v3/objects/contacts/search';
     const payload = {
         properties: [
-            "contact_id",
-            "firstname",
-            "lastname",
-            "phone",
-            "email",
-            "email_principal",
-            "fechamail"
+            "contact_id", "firstname", "lastname", "phone", "email",
+            "email_principal", "fechamail", "fechaencuesta", "valornps",
+            "mejoras", "comentario", "genero", "edadnps", "ropa", "zapatos",
+            "talla_ropa", "adolecentes_adultos", "infantes", "ninos",
+            "talla_zapatos", "actividad", "actividad_otros", "idnps", "fecha_encuesta"
         ],
         filterGroups: [
-            {
-                filters: [
-                    {
-                        propertyName: "hs_object_id",
-                        value: contactId,
-                        operator: "EQ"
-                    }
-                ]
-            }
+            { filters: [{ propertyName: "hs_object_id", value: contactId, operator: "EQ" }] }
         ]
     };
 
@@ -261,14 +140,60 @@ async function getContactData(contactId, token) {
         }
     });
 
-    if (response.data.results && response.data.results.length > 0) {
+    if (response.data.results?.length) {
         return response.data.results[0].properties;
-        
     } else {
-        throw new Error('No se encontró el contacto con los datos básicos');
+        throw new Error('No se encontró el contacto');
     }
 }
 
+// Datos del negocio
+async function getDealData(dealId, token) {
+    const url = 'https://api.hubapi.com/crm/v3/objects/deals/search';
+    const payload = {
+        properties: [
+            "concepto",
+            "local",
+            "provincia",
+            "region",
+            "centro",
+            "provincia_homologada"
+        ],
+        filterGroups: [
+            { filters: [{ propertyName: "hs_object_id", value: dealId, operator: "EQ" }] }
+        ]
+    };
+
+    const response = await axios.post(url, payload, {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        }
+    });
+
+    if (response.data.results?.length) {
+        return response.data.results[0].properties;
+    } else {
+        throw new Error('No se encontró el negocio');
+    }
+}
+
+// Actualizar contacto en hubspot con valores de encuesta
+async function updateContactData(contactId, data, token) {
+    const url = `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`;
+    const payload = { properties: data };
+
+    await axios.patch(url, payload, {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        }
+    });
+
+    console.log('Contacto actualizado correctamente en HubSpot');
+}
+
+// Token api externo
 async function getAuthToken() {
     const url = 'https://apihubspot.cloudvolution.com.ec:8001/token';
     const params = new URLSearchParams();
@@ -276,103 +201,83 @@ async function getAuthToken() {
     params.append('password', 'Hubspot');
 
     const response = await axios.post(url, params, {
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
 
-    if (response.data.access_token) {
-        return response.data.access_token;
-    } else {
-        throw new Error('No se pudo obtener el token de autenticación');
-    }
+    if (response.data.access_token) return response.data.access_token;
+    throw new Error('No se pudo obtener el token externo');
 }
 
-function prepareSurveyPayload(surveyData, contactData) {
+// preparar datos api externo
+function prepareSurveyPayload(contactData, dealData) {
     const now = new Date();
     const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
         'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
     const currentDate = `${now.getDate().toString().padStart(2, '0')}-${months[now.getMonth()]}-${now.getFullYear().toString().slice(-2)}`;
+    const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+
+    const idnpsValue = contactData.idnps && contactData.idnps.trim() !== "" ? contactData.idnps : uuidv4();
+    const fechaEncuesta = contactData.fechaencuesta || currentDate;
 
     return {
-        idnps: uuidv4(),
-        fechaencuesta: surveyData.fechaencuesta || currentDate,
-        valornps: surveyData.valornps || "",
-        nrodocumento: "",
-        concepto: surveyData.concepto || "",
-        local: surveyData.centro || "",
-        provincia: surveyData.provincia_homologada || "",
-        region: surveyData.region || "",
+        idnps: idnpsValue,
+        fechaencuesta: fechaEncuesta,
+        fecha_encuesta: formattedDate,
+        valornps: contactData.valornps || "",
+        concepto: dealData.concepto || "",
+        local: dealData.local || "",
+        provincia: dealData.provincia_homologada || dealData.provincia || "",
+        region: dealData.region || "",
+        centro: dealData.centro || "",
         identificacion: contactData.contact_id || "",
         nombres: contactData.firstname || "",
         apellidos: contactData.lastname || "",
-        mejoras: surveyData.mejoras || "",
-        comentario: surveyData.comentario || "",
+        mejoras: contactData.mejoras || "",
+        comentario: contactData.comentario || "",
         telefono: contactData.phone || "",
         email: contactData.email || contactData.email_principal || "",
-        localmcu: surveyData.localmcu || surveyData.centro || "",
         fechaenvio: contactData.fechamail || currentDate,
-        genero: sanitizeText(surveyData.genero),
-        edad: sanitizeString(surveyData.edad),
-        ropa: sanitizeText(surveyData.ropa),
-        zapatos: sanitizeText(surveyData.zapatos),
-        talla_ropa: sanitizeText(surveyData.talla_ropa),
-        adolecentes_adultos: sanitizeText(surveyData.adolecentes_adultos),
-        infantes: sanitizeText(surveyData.infantes),
-        ninos: sanitizeText(surveyData.ninos),
-        talla_zapatos: sanitizeString(surveyData.talla_zapatos),
-        actividad: sanitizeText(surveyData.actividad),
-        actividad_otros: sanitizeText(surveyData.actividad_otros)
+        genero: sanitizeText(contactData.genero),
+        edad: sanitizeString(contactData.edadnps),
+        ropa: sanitizeText(contactData.ropa),
+        zapatos: sanitizeText(contactData.zapatos),
+        talla_ropa: sanitizeText(contactData.talla_ropa),
+        adolecentes_adultos: sanitizeText(contactData.adolecentes_adultos),
+        infantes: sanitizeText(contactData.infantes),
+        ninos: sanitizeText(contactData.ninos),
+        talla_zapatos: sanitizeString(contactData.talla_zapatos),
+        actividad: sanitizeText(contactData.actividad),
+        actividad_otros: sanitizeText(contactData.actividad_otros)
     };
 }
 
+// formatear valores
 function sanitizeText(value) {
     return (typeof value === 'string' && value.trim() !== "") ? value.trim() : null;
 }
-
 function sanitizeString(value) {
     if (value === null || value === undefined) return null;
     return String(value).trim() || null;
 }
 
+// Envio de encuesta a api externo
 async function sendSurveyToAPI(payload, token) {
     const url = 'https://apihubspot.cloudvolution.com.ec:8001/encuesta';
-
     const response = await axios.post(url, payload, {
         headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
         }
     });
-
     return response.data;
 }
 
-app.post('/test/deal-data', async (req, res) => {
-    try {
-        const { dealId } = req.body;
-        const token = process.env.HUBSPOT_TOKEN;
-
-        if (!dealId || !token) {
-            return res.status(400).json({ error: 'dealId o token faltante' });
-        }
-
-        const data = await getDealData(dealId, token);
-        res.json({ success: true, data });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
+// test
 app.post('/test/contact-data', async (req, res) => {
     try {
         const { contactId } = req.body;
         const token = process.env.HUBSPOT_TOKEN;
-
-        if (!contactId || !token) {
-            return res.status(400).json({ error: 'contactId o token faltante' });
-        }
-
         const data = await getContactData(contactId, token);
         res.json({ success: true, data });
     } catch (error) {
@@ -380,42 +285,35 @@ app.post('/test/contact-data', async (req, res) => {
     }
 });
 
-app.post('/test/send-survey', async (req, res) => {
+app.post('/test/deal-data', async (req, res) => {
     try {
-        const { surveyData, contactData } = req.body;
-        const authToken = await getAuthToken();
-        const payload = prepareSurveyPayload(surveyData, contactData);
-
-        const response = await sendSurveyToAPI(payload, authToken);
-        res.json({ success: true, payloadSent: payload, response });
+        const { dealId } = req.body;
+        const token = process.env.HUBSPOT_TOKEN;
+        const data = await getDealData(dealId, token);
+        res.json({ success: true, data });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-
+// handler
 app.use('*', (req, res) => {
     res.status(404).json({
         error: 'Ruta no encontrada',
-        path: req.originalUrl,
-        method: req.method,
         availableRoutes: [
             'GET /',
             'GET /health',
-            'POST /api/hubspot',
-            'POST /api/webhook'
+            'POST /api/webhook',
+            'POST /test/contact-data',
+            'POST /test/deal-data'
         ]
     });
 });
 
+// iniciar servidor
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
         console.log(`Servidor corriendo en http://localhost:${PORT}`);
-        console.log(`Endpoints disponibles:`);
-        console.log(`   GET  http://localhost:${PORT}/`);
-        console.log(`   GET  http://localhost:${PORT}/health`);
-        console.log(`   POST http://localhost:${PORT}/api/hubspot`);
-        console.log(`   POST http://localhost:${PORT}/api/webhook`);
     });
 }
 
