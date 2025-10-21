@@ -232,7 +232,7 @@ function prepareSurveyPayload(dealData, contactData) {
     local: dealData.local || "",
     provincia: dealData.provincia_homologada || dealData.provincia || "",
     region: dealData.region || "",
-    identificacion: contactData.contact_id || "",
+    nrodocumento: contactData.contact_id || "",
     nombres: contactData.firstname || "",
     apellidos: contactData.lastname || "",
     mejoras: contactData.mejoras || "",
