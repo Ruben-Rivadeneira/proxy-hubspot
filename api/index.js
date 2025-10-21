@@ -62,6 +62,7 @@ app.post('/api/hubspot', async (req, res) => {
       });
     }
     
+    // Cambiado de deals a contacts
     const hubspotUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${id}`;
     
     console.log('Enviando a HubSpot:', {
@@ -309,7 +310,7 @@ function prepareSurveyPayload(dealData, contactData) {
   return {
     idnps: uuidv4(),
     fechaencuesta: formatDateToDDMMYYYY(contactData.fechaencuesta) || currentDate,
-    valornps: contactData.valornps || "",
+    valornps: sanitizeInteger(contactData.valornps),
     nrodocumento: "",
     concepto: dealData.concepto || "",
     local: dealData.centro || dealData.local || "",
@@ -325,14 +326,14 @@ function prepareSurveyPayload(dealData, contactData) {
     localmcu: dealData.centro || dealData.local || "",
     fechaenvio: contactData.fechamail || currentDate,
     genero: sanitizeText(contactData.genero),
-    edad: sanitizeString(contactData.edadnps),
+    edad: sanitizeInteger(contactData.edadnps),
     ropa: sanitizeText(contactData.ropa),
     zapatos: sanitizeText(contactData.zapatos),
     talla_ropa: sanitizeText(contactData.talla_ropa),
     adolecentes_adultos: sanitizeText(contactData.adolecentes_adultos),
     infantes: sanitizeText(contactData.infantes),
     ninos: sanitizeText(contactData.ninos),
-    talla_zapatos: sanitizeString(contactData.talla_zapatos),
+    talla_zapatos: sanitizeText(contactData.talla_zapatos),
     actividad: sanitizeText(contactData.actividad),
     actividad_otros: sanitizeText(contactData.actividad_otros)
   };
@@ -345,6 +346,12 @@ function sanitizeText(value) {
 function sanitizeString(value) {
   if (value === null || value === undefined) return null;
   return String(value).trim() || null;
+}
+
+function sanitizeInteger(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = parseInt(value, 10);
+  return isNaN(parsed) ? null : parsed;
 }
 
 async function sendSurveyToAPI(payload, token) {
