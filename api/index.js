@@ -209,6 +209,7 @@ async function getContactData(contactId, token) {
   
   const payload = {
     properties: [
+      "idnps",
       "contact_id",
       "firstname",
       "lastname",
@@ -279,37 +280,14 @@ async function getAuthToken() {
   }
 }
 
-function formatDateToDDMMYYYY(fechaEncuesta) {
-  if (!fechaEncuesta) return null;
-  
-  // Si ya viene en formato DD/MM/YYYY, retornar tal cual
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(fechaEncuesta)) {
-    return fechaEncuesta;
-  }
-  
-  // Si viene en formato ISO o timestamp, convertir
-  try {
-    const date = new Date(fechaEncuesta);
-    if (isNaN(date.getTime())) return null;
-    
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    
-    return `${day}/${month}/${year}`;
-  } catch (e) {
-    return null;
-  }
-}
-
 function prepareSurveyPayload(dealData, contactData) {
   const now = new Date();
   const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   const currentDate = `${now.getDate().toString().padStart(2, '0')}-${months[now.getMonth()]}-${now.getFullYear().toString().slice(-2)}`;
   
   return {
-    idnps: uuidv4(),
-    fechaencuesta: formatDateToDDMMYYYY(contactData.fechaencuesta) || currentDate,
+    idnps: contactData.idnps || uuidv4(),
+    fechaencuesta: contactData.fechaencuesta || currentDate,
     valornps: sanitizeInteger(contactData.valornps),
     nrodocumento: "",
     concepto: dealData.concepto || "",
