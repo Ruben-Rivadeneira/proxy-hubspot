@@ -304,7 +304,7 @@ function prepareSurveyPayload(dealData, contactData) {
     localmcu: dealData.centro || dealData.local || "",
     fechaenvio: contactData.fechamail || currentDate,
     genero: sanitizeText(contactData.genero),
-    edad: sanitizeInteger(contactData.edadnps),
+    edad: sanitizeText(contactData.edadnps),
     ropa: sanitizeText(contactData.ropa),
     zapatos: sanitizeText(contactData.zapatos),
     talla_ropa: sanitizeText(contactData.talla_ropa),
