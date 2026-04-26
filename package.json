@@ -1,7 +1,7 @@
 {
-  "name": "hubspot-proxy-fresh",
+  "name": "hubspot-proxy",
   "version": "1.0.0",
-  "description": "Fresh HubSpot Proxy API",
+  "description": "HubSpot Proxy API",
   "main": "api/index.js",
   "scripts": {
     "dev": "node api/index.js",
@@ -21,6 +21,6 @@
     "proxy",
     "api"
   ],
-  "author": "Tu Nombre",
+  "author": "Rubén",
   "license": "MIT"
 }
