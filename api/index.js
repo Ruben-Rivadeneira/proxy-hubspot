@@ -62,7 +62,7 @@ app.post('/api/hubspot', async (req, res) => {
       });
     }
     
-    // Cambiado de deals a contacts
+    // Info de Contactos
     const hubspotUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${id}`;
     
     console.log('Enviando a HubSpot:', {
@@ -100,6 +100,7 @@ app.post('/api/hubspot', async (req, res) => {
   }
 });
 
+// Enviar datos a Qlicksense
 app.post('/api/webhook', async (req, res) => {
   try {
     console.log('Webhook recibido:', req.body);
@@ -165,6 +166,7 @@ app.post('/api/webhook', async (req, res) => {
   }
 });
 
+//Obtener datos del negocio
 async function getDealData(dealId, token) {
   const url = 'https://api.hubapi.com/crm/v3/objects/deals/search';
   
@@ -204,6 +206,7 @@ async function getDealData(dealId, token) {
   }
 }
 
+//Obtener datos del contacto
 async function getContactData(contactId, token) {
   const url = 'https://api.hubapi.com/crm/v3/objects/contacts/search';
   
@@ -260,6 +263,7 @@ async function getContactData(contactId, token) {
   }
 }
 
+//Obtener token API externa
 async function getAuthToken() {
   const url = 'https://apihubspot.cloudvolution.com.ec:8001/token';
   
@@ -280,6 +284,7 @@ async function getAuthToken() {
   }
 }
 
+//Preparando payload de encuesta
 function prepareSurveyPayload(dealData, contactData) {
   const now = new Date();
   const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
